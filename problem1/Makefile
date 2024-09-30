@@ -8,7 +8,7 @@ CPPFLAGS = -fsanitize=address,undefined,signed-integer-overflow,pointer-compare,
 
 all: main.out
 
-main.out: main.o shared_pointer.o logger.o formater.o
+main.out: main.o shared_pointer.o logger.o formatter.o
 	$(CC) $(CPPFLAGS) -o $@ $^
 
 main.o: main.cpp
@@ -20,10 +20,8 @@ shared_pointer.o: shared_pointer.cpp
 logger.o: logger.cpp
 	$(CC) $(CPPFLAGS) -c -o $@ $^
 
-formater.o: formater.cpp
+formatter.o: formatter.cpp
 	$(CC) $(CPPFLAGS) -c -o $@ $^
-
-
 
 trashclean:
 	rm $(TRASH)
