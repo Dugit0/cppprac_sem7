@@ -1,18 +1,24 @@
-#define DEBUG
+#define DEBUG_MODE
 
 #include <iostream>
 #include <cstdlib>
 #include <algorithm>
 #include <random>
+#include <memory>
 #include <vector>
+#include <map>
+#include <set>
 #include <string>
 #include <ranges>
 
 #include "shared_pointer.cpp"
+#include "logger.cpp"
+
+
 
 namespace view = std::ranges::views;
 
-#ifdef DEBUG
+#ifdef DEBUG_MODE
 #include "formatter.cpp"
 
 template<typename T>
@@ -22,41 +28,95 @@ void print(T value) {
 #endif
 
 
+template<typename T>
+void simple_shuffle(T& container) {
+    std::mt19937 g(rand());
+    std::shuffle(container.begin(), container.end(), g);
+}
 
 
 class Player {
 public:
-    Player() {
+    Player(size_t id_p) : id(id_p) {
         alive = true;
+        is_real_player = false;
     };
     virtual ~Player() {};
+    // virtual size_t vote(std::vector<size_t> alive_ids) = 0;
+    virtual size_t vote(std::vector<size_t> alive_ids) {
+        if (is_real_player) {
+            return vote_ai(alive_ids);
+        } else {
+            return vote_ai(alive_ids);
+        }
+    }
+    virtual size_t vote_ai(std::vector<size_t>& alive_ids) = 0;
     
     bool alive;
+    bool is_real_player;
+    size_t id;
+    std::vector<size_t> known_mafia{};
     std::string team;
 };
 
 class Civilian : public Player {
 public:
-    Civilian() {
+    Civilian(size_t id_p) : Player(id_p) {
         team = "civilian";
     }
     virtual ~Civilian() {};
+    
+    virtual size_t vote_ai(std::vector<size_t>& alive_ids) override {
+        simple_shuffle(alive_ids);
+        size_t i = 0;
+        while (i < alive_ids.size()) {
+            if (alive_ids[i] != id) {
+                return alive_ids[i];
+            }
+            i++;
+        }
+        return 0;
+    }
 };
 
 class Mafia : public Player {
 public:
-    Mafia() {
+    Mafia(size_t id_p) : Player(id_p) {
         team = "mafia";
     }
     virtual ~Mafia() {};
+    
+    virtual size_t vote_ai(std::vector<size_t>& alive_ids) override {
+        simple_shuffle(alive_ids);
+        size_t i = 0;
+        while (i < alive_ids.size()) {
+            if (std::find(known_mafia.begin(), known_mafia.end(), alive_ids[i]) != known_mafia.end()) {
+                return alive_ids[i];
+            }
+            i++;
+        }
+        return 0;
+    }
 };
 
 class Maniac : public Player {
 public:
-    Maniac() {
+    Maniac(size_t id_p) : Player(id_p) {
         team = "maniac";
     }
     virtual ~Maniac() {};
+    
+    virtual size_t vote_ai(std::vector<size_t>& alive_ids) override {
+        simple_shuffle(alive_ids);
+        size_t i = 0;
+        while (i < alive_ids.size()) {
+            if (alive_ids[i] != id) {
+                return alive_ids[i];
+            }
+            i++;
+        }
+        return 0;
+    }
 };
 
 
@@ -73,7 +133,7 @@ public:
         players_num(players_num_),
         mafia_modifier(mafia_modifier_)
     {}
-    
+
     void add_random_roles(
             std::vector<std::string> roles,
             size_t limit,
@@ -107,19 +167,27 @@ public:
 
     void init_players(std::vector<std::string> roles) {
         players.clear();
-        for (auto role : roles) {
+        std::vector<size_t> mafia_buf{};
+        for (size_t i = 0; i < roles.size(); i++) {
+            auto role = roles[i];
             if (role == "civilian") {
-                players.push_back(Shared_pointer<Player>(new Civilian{}));
+                players.push_back(Shared_pointer<Player>(new Civilian{i}));
             } else if (role == "mafia") {
-                players.push_back(Shared_pointer<Player>(new Mafia{}));
+                mafia_buf.push_back(i);
+                players.push_back(Shared_pointer<Player>(new Mafia{i}));
             } else if (role == "maniac") {
-                players.push_back(Shared_pointer<Player>(new Maniac{}));
+                players.push_back(Shared_pointer<Player>(new Maniac{i}));
             } else if (role == "bull") {
+                mafia_buf.push_back(i);
             } else if (role == "commissar") {
             } else if (role == "doctor") {
             } else if (role == "journalist") {
             } else if (role == "samurai") {
             }
+        }
+        for (auto i : mafia_buf) {
+            players[i]->known_mafia.insert(players[i]->known_mafia.end(), mafia_buf.begin(),
+                    mafia_buf.end());
         }
     }
 
@@ -161,6 +229,29 @@ public:
             }
         }
     }
+
+
+    void main_loop();
+    void day_vote() {
+        auto alives_rng = players 
+            | view::filter([](auto p) { return p->alive; })
+            | view::transform([](auto p) { return p->id; });
+        std::vector<size_t> alives_ids{alives_rng.begin(), alives_rng.end()};
+        std::map<size_t, unsigned int> votes{};
+        for (auto id: alives_ids) {
+            votes[id] = 0;
+        }
+        for (const auto& player : players) {
+            auto value = player->vote(alives_ids);
+            votes[value]++;
+        }
+        auto key_val = std::max_element(votes.begin(), votes.end(),
+                [](const std::pair<int, int>& p1, const std::pair<int, int>& p2) {
+                    return p1.second < p2.second;
+                });
+        players[key_val->first]->alive = false;
+    }
+    void night_act();
 };
 
 
@@ -172,13 +263,16 @@ void debug(std::vector<std::string> v) {
 
 int main(void) {
     std::srand(42);
-    debug({}); // draw
-    debug({"civilian"}); // civ
-    debug({"civilian", "civilian"}); // civ
-    debug({"civilian", "maniac"}); // maniac
-    debug({"civilian", "civilian", "maniac"}); // cont
-    debug({"mafia", "civilian", "maniac"});
-    debug({"mafia", "civilian", "civilian"});
-    debug({"mafia", "mafia", "civilian"});
+    std::vector<std::string> v {"123", "234", "345", "456"};
+    simple_shuffle(v);
+    print(v);
+    // debug({}); // draw
+    // debug({"civilian"}); // civ
+    // debug({"civilian", "civilian"}); // civ
+    // debug({"civilian", "maniac"}); // maniac
+    // debug({"civilian", "civilian", "maniac"}); // cont
+    // debug({"mafia", "civilian", "maniac"});
+    // debug({"mafia", "civilian", "civilian"});
+    // debug({"mafia", "mafia", "civilian"});
     return 0;
 }
