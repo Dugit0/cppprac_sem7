@@ -72,6 +72,10 @@ public:
         std::swap(counter, ptr.counter);
         std::swap(stored_ptr, ptr.stored_ptr);
     }
+
+    unsigned long long use_count() const {
+        return *counter;
+    }
     
     ~Shared_pointer() {
         if (stored_ptr) {
