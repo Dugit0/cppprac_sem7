@@ -90,7 +90,7 @@ public:
         simple_shuffle(alive_ids);
         size_t i = 0;
         while (i < alive_ids.size()) {
-            if (std::find(known_mafia.begin(), known_mafia.end(), alive_ids[i]) != known_mafia.end()) {
+            if (std::find(known_mafia.begin(), known_mafia.end(), alive_ids[i]) == known_mafia.end()) {
                 return alive_ids[i];
             }
             i++;
@@ -122,6 +122,7 @@ public:
 
 class Game {
 public:
+    Logger* logger;
     std::vector<Shared_pointer<Player>> players {};
     unsigned int players_num;
     unsigned int mafia_modifier;
@@ -167,15 +168,23 @@ public:
 
     void init_players(std::vector<std::string> roles) {
         players.clear();
+        logger = new Logger{"init.log"};
+        logger->log(Loglevel::INFO, "--- INIT ---");
         std::vector<size_t> mafia_buf{};
         for (size_t i = 0; i < roles.size(); i++) {
             auto role = roles[i];
             if (role == "civilian") {
+                logger->log(Loglevel::INFO,
+                        TPrettyPrinter().Format("Player ").Format(i).Format(" is civilian").Str());
                 players.push_back(Shared_pointer<Player>(new Civilian{i}));
             } else if (role == "mafia") {
+                logger->log(Loglevel::INFO,
+                        TPrettyPrinter().Format("Player ").Format(i).Format(" is mafia").Str());
                 mafia_buf.push_back(i);
                 players.push_back(Shared_pointer<Player>(new Mafia{i}));
             } else if (role == "maniac") {
+                logger->log(Loglevel::INFO,
+                        TPrettyPrinter().Format("Player ").Format(i).Format(" is maniac").Str());
                 players.push_back(Shared_pointer<Player>(new Maniac{i}));
             } else if (role == "bull") {
                 mafia_buf.push_back(i);
@@ -189,6 +198,7 @@ public:
             players[i]->known_mafia.insert(players[i]->known_mafia.end(), mafia_buf.begin(),
                     mafia_buf.end());
         }
+        delete logger;
     }
 
     std::string game_status() {
@@ -231,19 +241,45 @@ public:
     }
 
 
-    void main_loop();
+    void main_loop() {
+        unsigned int day_number = 0;
+        bool break_flag = false;
+        while (true) {
+            logger = new Logger{"day_" + std::to_string(day_number) + ".log"};
+            logger->log(Loglevel::INFO, "--- DAY " + std::to_string(day_number) + " ---");
+            day_vote();
+            auto cur_status = game_status();
+            if (cur_status == "civilian") {
+                std::cout << "civ" << std::endl;
+                break_flag = true;
+            } else if (cur_status == "mafia") {
+                std::cout << "maf" << std::endl;
+                break_flag = true;
+            } else if (cur_status == "maniac") {
+                std::cout << "mana" << std::endl;
+                break_flag = true;
+            }
+            delete logger;
+            day_number++;
+            if (break_flag) {
+                return;
+            }
+        }
+    }
     void day_vote() {
-        auto alives_rng = players 
-            | view::filter([](auto p) { return p->alive; })
-            | view::transform([](auto p) { return p->id; });
-        std::vector<size_t> alives_ids{alives_rng.begin(), alives_rng.end()};
+        auto alives = players | view::filter([](auto p) { return p->alive; });
+        auto alives_ids_rng = alives | view::transform([](auto p) { return p->id; });
+        // decltype(players) alive_players
+        std::vector<size_t> alives_ids{alives_ids_rng.begin(), alives_ids_rng.end()};
         std::map<size_t, unsigned int> votes{};
         for (auto id: alives_ids) {
             votes[id] = 0;
         }
-        for (const auto& player : players) {
+        for (const auto& player : alives) {
             auto value = player->vote(alives_ids);
             votes[value]++;
+            logger->log(Loglevel::INFO,
+                    TPrettyPrinter().Format("Player ").Format(player->id).Format(" voted for player ").Format(value).Str());
         }
         auto key_val = std::max_element(votes.begin(), votes.end(),
                 [](const std::pair<int, int>& p1, const std::pair<int, int>& p2) {
@@ -262,10 +298,13 @@ void debug(std::vector<std::string> v) {
 }
 
 int main(void) {
-    std::srand(42);
-    std::vector<std::string> v {"123", "234", "345", "456"};
-    simple_shuffle(v);
-    print(v);
+    // std::srand(42);
+    std::srand(time(NULL));
+    auto game = Game(10);
+    // print(game.get_random_roles());
+    game.init_players({"mafia", "mafia", "mafia", "civilian", "civilian",
+                       "civilian", "civilian", "civilian", "civilian", "maniac"});
+    game.main_loop();
     // debug({}); // draw
     // debug({"civilian"}); // civ
     // debug({"civilian", "civilian"}); // civ
