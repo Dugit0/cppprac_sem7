@@ -27,16 +27,16 @@ public:
     void log(Loglevel level, const std::string& message)
     {
         // Get current timestamp
-        time_t now = time(0);
-        tm* timeinfo = localtime(&now);
-        char timestamp[20];
-        strftime(timestamp, sizeof(timestamp),
-                 "%Y-%m-%d %H:%M:%S", timeinfo);
+        // time_t now = time(0);
+        // tm* timeinfo = localtime(&now);
+        // char timestamp[20];
+        // strftime(timestamp, sizeof(timestamp),
+        //          "%Y-%m-%d %H:%M:%S", timeinfo);
 
         // Create log entry
         std::ostringstream logEntry;
-        logEntry << "[" << timestamp << "] "
-                 << levelToString(level) << ": " << message
+        // logEntry << "[" << timestamp << "] "
+        logEntry << levelToString(level) << ": " << message
                  << std::endl;
 
         // Output to console
