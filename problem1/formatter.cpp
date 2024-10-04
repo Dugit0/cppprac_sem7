@@ -26,35 +26,35 @@ struct TPrettyPrinter {
     }
 
     template <IntegerType T>
-    TPrettyPrinter& Format(const T& value) {
+    TPrettyPrinter& f(const T& value) {
         str += std::to_string(value);
         return *this;
     }
 
-    TPrettyPrinter& Format(const std::string& value) {
+    TPrettyPrinter& f(const std::string& value) {
         str += value;
         return *this;
     }
 
     template<typename T>
-    TPrettyPrinter& Format(const std::vector<T>& value) {
+    TPrettyPrinter& f(const std::vector<T>& value) {
         return format_container(value, "[", "]");
     }
 
     template<typename T>
-    TPrettyPrinter& Format(const std::set<T>& value) {
+    TPrettyPrinter& f(const std::set<T>& value) {
         return format_container(value, "{", "}");
     }
 
     template<typename... Args>
-    TPrettyPrinter& Format(const std::tuple<Args...>& value) {
+    TPrettyPrinter& f(const std::tuple<Args...>& value) {
         size_t length = sizeof...(Args);
         std::stringstream ss{};
         std::apply(
             [length, &ss](auto const&... ps) {
                 ss << "(";
                 size_t k = 0;
-                ((ss << TPrettyPrinter().Format(ps).Str() << (++k == length ? "" : ", ")), ...);
+                ((ss << TPrettyPrinter().f(ps).Str() << (++k == length ? "" : ", ")), ...);
                 ss << ")";
             },
             value);
@@ -63,8 +63,8 @@ struct TPrettyPrinter {
     }
 
     template<typename T1, typename T2>
-    TPrettyPrinter& Format(const std::pair<T1, T2>& value) {
-        str += "<" + TPrettyPrinter().Format(value.first).Format(", ").Format(value.second).Str() + ">";
+    TPrettyPrinter& f(const std::pair<T1, T2>& value) {
+        str += "<" + TPrettyPrinter().f(value.first).f(", ").f(value.second).Str() + ">";
         return *this;
     }
 
@@ -76,10 +76,10 @@ private:
             const C& value,
             std::string open_bracket,
             std::string close_bracket) {
-        // str += open_bracket + TPrettyPrinter().Format(*(value.begin())).Str();
+        // str += open_bracket + TPrettyPrinter().f(*(value.begin())).Str();
         str += open_bracket;
         for (auto it = value.begin(); it != value.end(); it++) {
-            str += TPrettyPrinter().Format(*it).Str() + ", ";
+            str += TPrettyPrinter().f(*it).Str() + ", ";
         }
         str = str.substr(0, str.size() - 2);
         str += close_bracket;
@@ -89,5 +89,5 @@ private:
 
 template<typename T>
 std::string Format(const T& t) {
-    return TPrettyPrinter().Format(t).Str();
+    return TPrettyPrinter().f(t).Str();
 }
