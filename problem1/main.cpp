@@ -40,6 +40,7 @@ public:
     Player(size_t id_p) : id(id_p) {
         alive = true;
         is_real_player = false;
+        is_boss = false;
     };
     virtual ~Player() {};
     // virtual size_t vote(std::vector<size_t> alive_ids) = 0;
@@ -50,10 +51,19 @@ public:
             return vote_ai(alive_ids);
         }
     }
+    virtual size_t act(std::vector<size_t> alive_ids) {
+        if (is_real_player) {
+            return act_ai(alive_ids);
+        } else {
+            return act_ai(alive_ids);
+        }
+    }
     virtual size_t vote_ai(std::vector<size_t>& alive_ids) = 0;
+    virtual size_t act_ai(std::vector<size_t>& alive_ids) = 0;
     
     bool alive;
     bool is_real_player;
+    bool is_boss;
     size_t id;
     std::vector<size_t> known_mafia{};
     std::string team;
@@ -77,6 +87,8 @@ public:
         }
         return 0;
     }
+    // virtual size_t act_ai(std::vector<size_t>& alive_ids) override {
+    // }
 };
 
 class Mafia : public Player {
@@ -175,16 +187,16 @@ public:
             auto role = roles[i];
             if (role == "civilian") {
                 logger->log(Loglevel::INFO,
-                        TPrettyPrinter().Format("Player ").Format(i).Format(" is civilian").Str());
+                        TPrettyPrinter().f("Player ").f(i).f(" is civilian").Str());
                 players.push_back(Shared_pointer<Player>(new Civilian{i}));
             } else if (role == "mafia") {
                 logger->log(Loglevel::INFO,
-                        TPrettyPrinter().Format("Player ").Format(i).Format(" is mafia").Str());
+                        TPrettyPrinter().f("Player ").f(i).f(" is mafia").Str());
                 mafia_buf.push_back(i);
                 players.push_back(Shared_pointer<Player>(new Mafia{i}));
             } else if (role == "maniac") {
                 logger->log(Loglevel::INFO,
-                        TPrettyPrinter().Format("Player ").Format(i).Format(" is maniac").Str());
+                        TPrettyPrinter().f("Player ").f(i).f(" is maniac").Str());
                 players.push_back(Shared_pointer<Player>(new Maniac{i}));
             } else if (role == "bull") {
                 mafia_buf.push_back(i);
@@ -198,7 +210,21 @@ public:
             players[i]->known_mafia.insert(players[i]->known_mafia.end(), mafia_buf.begin(),
                     mafia_buf.end());
         }
+        simple_shuffle(mafia_buf);
+        players[mafia_buf[0]]->is_boss = true;
         delete logger;
+    }
+
+    void reelection_mafia_boss() {
+        auto mafia = players |
+                     view::filter([](auto p) { return p->alive; }) |
+                     view::filter([](auto p) { return p->team == "mafia"; });
+        if (!mafia.empty() && 
+                (mafia | view::filter([](auto p) { return p->is_boss; })).empty()) {
+            std::vector<Shared_pointer<Player>> mafia_vec{mafia.begin(), mafia.end()};
+            simple_shuffle(mafia_vec);
+            mafia_vec[0]->is_boss = true;
+        }
     }
 
     std::string game_status() {
@@ -243,33 +269,30 @@ public:
 
     void main_loop() {
         unsigned int day_number = 0;
-        bool break_flag = false;
+        // bool break_flag = false;
         while (true) {
             logger = new Logger{"day_" + std::to_string(day_number) + ".log"};
             logger->log(Loglevel::INFO, "--- DAY " + std::to_string(day_number) + " ---");
             day_vote();
+            reelection_mafia_boss();
             auto cur_status = game_status();
-            if (cur_status == "civilian") {
-                std::cout << "civ" << std::endl;
-                break_flag = true;
-            } else if (cur_status == "mafia") {
-                std::cout << "maf" << std::endl;
-                break_flag = true;
-            } else if (cur_status == "maniac") {
-                std::cout << "mana" << std::endl;
-                break_flag = true;
-            }
-            delete logger;
-            day_number++;
-            if (break_flag) {
+            if (cur_status != "continue") {
+                std::cout << cur_status << std::endl;
+                delete logger;
                 return;
+                // break_flag = true;
             }
+            // if (break_flag) {
+            //     delete logger;
+            //     return;
+            // }
+            day_number++;
         }
     }
+
     void day_vote() {
         auto alives = players | view::filter([](auto p) { return p->alive; });
         auto alives_ids_rng = alives | view::transform([](auto p) { return p->id; });
-        // decltype(players) alive_players
         std::vector<size_t> alives_ids{alives_ids_rng.begin(), alives_ids_rng.end()};
         std::map<size_t, unsigned int> votes{};
         for (auto id: alives_ids) {
@@ -279,7 +302,7 @@ public:
             auto value = player->vote(alives_ids);
             votes[value]++;
             logger->log(Loglevel::INFO,
-                    TPrettyPrinter().Format("Player ").Format(player->id).Format(" voted for player ").Format(value).Str());
+                    TPrettyPrinter().f("Player ").f(player->id).f(" voted for player ").f(value).Str());
         }
         auto key_val = std::max_element(votes.begin(), votes.end(),
                 [](const std::pair<int, int>& p1, const std::pair<int, int>& p2) {
@@ -287,7 +310,16 @@ public:
                 });
         players[key_val->first]->alive = false;
     }
-    void night_act();
+
+    void night_act() {
+        auto alives = players | view::filter([](auto p) { return p->alive; });
+        auto alives_ids_rng = alives | view::transform([](auto p) { return p->id; });
+        std::vector<size_t> alives_ids{alives_ids_rng.begin(), alives_ids_rng.end()};
+        for (const auto& player : alives) {
+            auto value = player->vote(alives_ids);
+        }
+
+    }
 };
 
 
