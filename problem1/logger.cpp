@@ -39,8 +39,10 @@ public:
         logEntry << levelToString(level) << ": " << message
                  << std::endl;
 
+#ifdef DEBUG_MODE
         // Output to console
         std::cout << logEntry.str();
+#endif
 
         // Output to log file
         if (logFile.is_open()) {

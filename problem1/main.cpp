@@ -11,6 +11,7 @@
 #include <string>
 #include <ranges>
 
+#include "formatter.cpp"
 #include "shared_pointer.cpp"
 #include "logger.cpp"
 
@@ -18,15 +19,11 @@
 
 namespace view = std::ranges::views;
 
-#ifdef DEBUG_MODE
-#include "formatter.cpp"
 
 template<typename T>
 void print(T value) {
     std::cout << Format(value) << std::endl;
 }
-#endif
-
 
 template<typename T>
 void simple_shuffle(T& container) {
@@ -77,18 +74,18 @@ public:
     virtual ~Player() {};
     virtual size_t vote(std::vector<size_t> alive_ids) {
         if (is_real_player) {
-            return vote_ai(alive_ids);
-        } else {
             return vote_player(alive_ids);
+        } else {
+            return vote_ai(alive_ids);
         }
     }
     virtual void act(std::vector<size_t> alive_ids,
                      NightActions& night_actions,
                      std::vector<Shared_pointer<Player>> players) {
         if (is_real_player) {
-            act_ai(alive_ids, night_actions, players);
-        } else {
             act_player(alive_ids, night_actions, players);
+        } else {
+            act_ai(alive_ids, night_actions, players);
         }
     }
     virtual size_t vote_ai(std::vector<size_t>& alive_ids) = 0;
@@ -246,7 +243,8 @@ public:
     virtual void act_player(std::vector<size_t>& alive_ids,
                             NightActions& night_actions,
                             std::vector<Shared_pointer<Player>>) override {
-        std::cout << "Choose one of:" << std::endl;
+        std::cout << "Who do you want to heal?" << std::endl
+                  << "Choose one of:" << std::endl;
         for (auto i : alive_ids) {
             std::cout << i << " ";
         }
@@ -297,7 +295,8 @@ public:
             std::cout << i << " ";
         }
         std::cout << std::endl;
-        std::cout << "But it shouldn't be you." << std::endl;
+        std::cout << "Who do you want to check?" << std::endl
+                  << "But it shouldn't be you." << std::endl;
         while (true) {
             size_t i, j;
             std::cin >> i >> j;
@@ -338,7 +337,8 @@ public:
     virtual void act_player(std::vector<size_t>& alive_ids,
                             NightActions& night_actions,
                             std::vector<Shared_pointer<Player>>) override {
-        std::cout << "Choose one of:" << std::endl;
+        std::cout << "Who do you want to protect?" << std::endl
+                  << "Choose one of:" << std::endl;
         for (auto i : alive_ids) {
             std::cout << i << " ";
         }
@@ -518,6 +518,11 @@ public:
         players.clear();
         logger = new Logger{"init.log"};
         logger->log(Loglevel::INFO, "--- INIT ---");
+        
+        std::cout << "Do you want to play? Select the number of the player (from 0 to " << roles.size() - 1
+                  << ") you want to play or -1 if you don't want to." << std::endl;
+        int choice;
+        std::cin >> choice;
         std::vector<size_t> mafia_buf{};
         for (size_t i = 0; i < roles.size(); i++) {
             auto role = roles[i];
@@ -557,6 +562,13 @@ public:
                         TPrettyPrinter().f("Player ").f(i).f(" is samurai").Str());
                 players.push_back(Shared_pointer<Player>(new Samurai{i}));
                 samurai_id = i;
+            }
+            if (std::cmp_equal(choice, i)) {
+                players[i]->is_real_player = true;
+                std::cout << "You are " << players[i]->role << "!" << std::endl;
+                if (players[i]->role == "samurai") {
+                    std::cout << "Wake up, Samurai! We have a city to burn!" << std::endl;
+                }
             }
         }
         for (auto i : mafia_buf) {
@@ -703,7 +715,7 @@ public:
             player->act(alives_ids, night_actions, players);
         }
         
-        std::cout << TPrettyPrinter().f(night_actions.killers).Str() << std::endl;
+        // print(night_actions.killers);
         
         // Bull avoid maniac's attempt to kill him
         for (size_t i = 0; i < night_actions.killers[bull_id].size(); i++) {
@@ -737,8 +749,8 @@ public:
             }
         }
 
+        // print(night_actions.killers);
 
-        std::cout << TPrettyPrinter().f(night_actions.killers).Str() << std::endl;
         for (size_t i = 0; i < players_num; i++) {
             if (!night_actions.killers[i].empty()) {
                 auto log_message = TPrettyPrinter().f("Player ").f(i).f(" was killed by ").Str();
