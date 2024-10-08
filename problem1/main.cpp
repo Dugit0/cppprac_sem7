@@ -160,7 +160,7 @@ public:
         }
         auto max_id = *std::max_element(alive_ids.begin(), alive_ids.end());
         for (size_t i = 0; i <= max_id; i++) {
-            if (std::find(already_checked.begin(), already_checked.end(), i) != already_checked.end()) {
+            if (std::find(already_checked.begin(), already_checked.end(), i) == already_checked.end()) {
                 already_checked.push_back(i);
                 if (players[i]->team == "mafia") {
                     known_mafia.push_back(i);
@@ -333,6 +333,8 @@ public:
     unsigned int mafia_modifier;
     std::vector<std::string> civilian_roles {"commissar", "doctor", "journalist", "samurai"};
     std::vector<std::string> mafia_roles {"bull"};
+    size_t samurai_id;
+    size_t bull_id;
 // "civilian", "mafia", "maniac"
 
     explicit Game(unsigned int players_num_, unsigned int mafia_modifier_ = 3) : 
@@ -396,6 +398,7 @@ public:
                         TPrettyPrinter().f("Player ").f(i).f(" is bull").Str());
                 players.push_back(Shared_pointer<Player>(new Bull{i}));
                 mafia_buf.push_back(i);
+                bull_id = i;
             } else if (role == "commissar") {
                 logger->log(Loglevel::INFO,
                         TPrettyPrinter().f("Player ").f(i).f(" is commissar").Str());
@@ -412,6 +415,7 @@ public:
                 logger->log(Loglevel::INFO,
                         TPrettyPrinter().f("Player ").f(i).f(" is samurai").Str());
                 players.push_back(Shared_pointer<Player>(new Samurai{i}));
+                samurai_id = i;
             }
         }
         for (auto i : mafia_buf) {
@@ -477,28 +481,52 @@ public:
 
     void main_loop() {
         unsigned int day_number = 0;
+        std::string cur_status = "";
         while (true) {
             logger = new Logger{"day_" + std::to_string(day_number) + ".log"};
             logger->log(Loglevel::INFO, "--- DAY " + std::to_string(day_number) + " ---");
             day_vote();
             reelection_mafia_boss();
-            auto cur_status = game_status();
+            cur_status = game_status();
             if (cur_status != "continue") {
-                std::cout << cur_status << std::endl;
                 delete logger;
-                return;
+                break;
             }
             night_act();
             reelection_mafia_boss();
             cur_status = game_status();
             if (cur_status != "continue") {
-                std::cout << cur_status << std::endl;
                 delete logger;
-                return;
+                break;
             }
             day_number++;
             delete logger;
         }
+        logger = new Logger{"result.log"};
+        if (cur_status == "draw") {
+            logger->log(Loglevel::INFO, "No one survived the brutal shootouts and nighttime murders... The city died out...");
+            logger->log(Loglevel::INFO, "DRAW!");
+            logger->log(Loglevel::INFO, "Alives: ---");
+            delete logger;
+            return;
+        }
+        if (cur_status == "mafia") {
+            logger->log(Loglevel::INFO, "The mafia has taken over this city and no one can stop them anymore. The mafia never dies!");
+            logger->log(Loglevel::INFO, "MAFIA WIN");
+        } else if (cur_status == "maniac") {
+            logger->log(Loglevel::INFO, "Neither the mafia, nor the peaceful civilian, nor the sheriff could stop the crazy loner in the night...");
+            logger->log(Loglevel::INFO, "MANIAC WINS");
+        } else if (cur_status == "civilian") {
+            logger->log(Loglevel::INFO, "The city sleeps peacefully. The citizens united and fought back against the mafia and the maniac.");
+            logger->log(Loglevel::INFO, "CIVILIANS WIN");
+        }
+        logger->log(Loglevel::INFO, "Alives:");
+        for (const auto& player : players) {
+            if (player->alive) {
+                logger->log(Loglevel::INFO, TPrettyPrinter().f("Player ").f(player->id).f(" - ").f(player->role).Str());
+            }
+        }
+        delete logger;
     }
 
     void day_vote() {
@@ -533,6 +561,41 @@ public:
         for (const auto& player : alives) {
             player->act(alives_ids, night_actions, players);
         }
+        
+        std::cout << TPrettyPrinter().f(night_actions.killers).Str() << std::endl;
+        
+        // Bull avoid maniac's attempt to kill him
+        for (size_t i = 0; i < night_actions.killers[bull_id].size(); i++) {
+            auto killer_id = night_actions.killers[bull_id][i];
+            if (players[killer_id]->role == "maniac") {
+                night_actions.killers[bull_id].erase(night_actions.killers[bull_id].begin() + i);
+                break;
+            }
+        }
+        if (night_actions.commissar_action) {
+            logger->log(Loglevel::INFO, TPrettyPrinter().f("Commissar checked player ").f(night_actions.commissar_choice).f(
+                        ". He was a ").f(players[night_actions.commissar_choice]->role).Str());
+        }
+        if (night_actions.doctors_action) {
+            logger->log(Loglevel::INFO, TPrettyPrinter().f("Doctor healed player ").f(night_actions.doctors_choice).Str());
+            night_actions.killers[night_actions.doctors_choice].clear();
+        }
+        if (night_actions.journalist_action) {
+            logger->log(Loglevel::INFO, TPrettyPrinter().f("Journalist checked players ").f(
+                        night_actions.journalist_choice.first).f(" and ").f(
+                        night_actions.journalist_choice.second).Str());
+        }
+        if (night_actions.samurai_action) {
+            logger->log(Loglevel::INFO, TPrettyPrinter().f("Samurai protected player ").f(night_actions.samurai_choice).Str());
+            auto& killers_list = night_actions.killers[night_actions.samurai_choice];
+            if (!killers_list.empty()) {
+                simple_shuffle(killers_list);
+                night_actions.killers[killers_list[0]].push_back(samurai_id);
+                night_actions.killers[samurai_id].push_back(samurai_id);
+                night_actions.killers[night_actions.samurai_choice].clear();
+            }
+        }
+
 
         std::cout << TPrettyPrinter().f(night_actions.killers).Str() << std::endl;
         for (size_t i = 0; i < players_num; i++) {
@@ -551,22 +614,26 @@ public:
 };
 
 
-void debug(std::vector<std::string> v) {
-    auto game = Game{10};
-    game.init_players(v);
-    print(game.game_status());
-}
+// void debug(std::vector<std::string> v) {
+//     auto game = Game{10};
+//     game.init_players(v);
+//     print(game.game_status());
+// }
 
 int main(void) {
-    std::srand(42);
-    std::srand(time(NULL));
-    auto game = Game(10);
-    auto roles = game.get_random_roles();
+    for (int i = 0; i < 200; i++) {
+        std::srand(5);
+        std::cout << "========== SRAND = " << i << " ==========" << std::endl;
+        auto game = Game(10);
+        auto roles = game.get_random_roles();
+        game.init_players(roles);
+        game.main_loop();
+        break;
+    }
+    // std::srand(time(NULL));
     // print();
-    game.init_players(roles);
     // game.init_players({"mafia", "mafia", "mafia", "civilian", "civilian",
     //                    "civilian", "civilian", "civilian", "civilian", "maniac"});
-    game.main_loop();
     // debug({}); // draw
     // debug({"civilian"}); // civ
     // debug({"civilian", "civilian"}); // civ

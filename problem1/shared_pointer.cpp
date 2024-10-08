@@ -26,10 +26,12 @@ public:
     }
     
     Shared_pointer operator=(const Shared_pointer& ptr) {
-        reset();
-        stored_ptr = ptr.stored_ptr;
-        counter = ptr.counter;
-        (*counter)++;
+        if (stored_ptr != ptr.stored_ptr) {
+            reset();
+            stored_ptr = ptr.stored_ptr;
+            counter = ptr.counter;
+            (*counter)++;
+        }
         return *this;
     }
 
