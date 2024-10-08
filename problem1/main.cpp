@@ -79,7 +79,7 @@ public:
         if (is_real_player) {
             return vote_ai(alive_ids);
         } else {
-            return vote_ai(alive_ids);
+            return vote_player(alive_ids);
         }
     }
     virtual void act(std::vector<size_t> alive_ids,
@@ -88,13 +88,26 @@ public:
         if (is_real_player) {
             act_ai(alive_ids, night_actions, players);
         } else {
-            act_ai(alive_ids, night_actions, players);
+            act_player(alive_ids, night_actions, players);
         }
     }
     virtual size_t vote_ai(std::vector<size_t>& alive_ids) = 0;
+    virtual size_t vote_player(std::vector<size_t>& alive_ids) {
+        std::cout << "Voting! Choose which candidate to vote for from the following:" << std::endl;
+        for (auto i : alive_ids) {
+            std::cout << i << " ";
+        }
+        std::cout << std::endl;
+        size_t res;
+        std::cin >> res;
+        return res;
+    }
     virtual void act_ai(std::vector<size_t>& alive_ids,
                         NightActions& night_actions,
                         std::vector<Shared_pointer<Player>> players) = 0;
+    virtual void act_player(std::vector<size_t>& alive_ids,
+                            NightActions& night_actions,
+                            std::vector<Shared_pointer<Player>> players) = 0;
     
     bool alive;
     bool is_real_player;
@@ -125,6 +138,9 @@ public:
         return 0;
     }
     virtual void act_ai(std::vector<size_t>&, NightActions&, std::vector<Shared_pointer<Player>>) override {
+        return;
+    }
+    virtual void act_player(std::vector<size_t>&, NightActions&, std::vector<Shared_pointer<Player>>) override {
         return;
     }
 };
@@ -174,6 +190,34 @@ public:
         }
         return;
     }
+    virtual void act_player(std::vector<size_t>& alive_ids,
+                            NightActions& night_actions,
+                            std::vector<Shared_pointer<Player>> players) override {
+        while (true) {
+            std::cout << "Choose an action: shoot (s) or check (c)." << std::endl;
+            std::string choice;
+            std::cin >> choice;
+            std::cout << "Choose one of:" << std::endl;
+            for (auto i : alive_ids) {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+            size_t shoot_check;
+            std::cin >> shoot_check;
+            if (choice == "shoot" || choice == "s") {
+                night_actions.killers[shoot_check].push_back(id);
+                return;
+            } else if (choice == "check" || choice == "c") {
+                std::cout << "Player " << shoot_check << " is "
+                          << ((players[shoot_check]->team == "mafia") ? "mafia" : "not mafia") << std::endl;
+                night_actions.commissar_action = true;
+                night_actions.commissar_choice = shoot_check;
+                return;
+            } else {
+                std::cout << "Incorrect action!" << std::endl;
+            }
+        }
+    }
 };
 
 
@@ -195,6 +239,29 @@ public:
                 night_actions.doctors_action = true;
                 night_actions.doctors_choice = alive_ids[i];
                 last_heal = alive_ids[i];
+                return;
+            }
+        }
+    }
+    virtual void act_player(std::vector<size_t>& alive_ids,
+                            NightActions& night_actions,
+                            std::vector<Shared_pointer<Player>>) override {
+        std::cout << "Choose one of:" << std::endl;
+        for (auto i : alive_ids) {
+            std::cout << i << " ";
+        }
+        std::cout << std::endl;
+        std::cout << "But it shouldn't be the same player you healed last time." << std::endl;
+        while (true) {
+            size_t choice;
+            std::cin >> choice;
+            if (last_heal == choice) {
+                std::cout << "You already healed this player last time." << std::endl;
+                continue;
+            } else {
+                night_actions.doctors_action = true;
+                night_actions.doctors_choice = choice;
+                last_heal = choice;
                 return;
             }
         }
@@ -222,6 +289,33 @@ public:
             }
         }
     }
+    virtual void act_player(std::vector<size_t>& alive_ids,
+                            NightActions& night_actions,
+                            std::vector<Shared_pointer<Player>> players) override {
+        std::cout << "Choose two of:" << std::endl;
+        for (auto i : alive_ids) {
+            std::cout << i << " ";
+        }
+        std::cout << std::endl;
+        std::cout << "But it shouldn't be you." << std::endl;
+        while (true) {
+            size_t i, j;
+            std::cin >> i >> j;
+            if (i != id && j != id) {
+                if (players[i]->team == players[j]->team) {
+                    std::cout << "These players are from the same team" << std::endl;
+                } else {
+                    std::cout << "These players are from different teams" << std::endl;
+                }
+                night_actions.journalist_action = true;
+                night_actions.journalist_choice = {i, j};
+                return;
+            } else {
+                std::cout << "It shouldn't be you!" << std::endl;
+                continue;
+            }
+        }
+    }
 };
 
 
@@ -240,6 +334,19 @@ public:
             night_actions.samurai_action = true;
             night_actions.samurai_choice = i;
         }
+    }
+    virtual void act_player(std::vector<size_t>& alive_ids,
+                            NightActions& night_actions,
+                            std::vector<Shared_pointer<Player>>) override {
+        std::cout << "Choose one of:" << std::endl;
+        for (auto i : alive_ids) {
+            std::cout << i << " ";
+        }
+        std::cout << std::endl;
+        size_t choice;
+        std::cin >> choice;
+        night_actions.samurai_action = true;
+        night_actions.samurai_choice = choice;
     }
 };
 
@@ -276,6 +383,28 @@ public:
                 }
                 i++;
             }
+        }
+    }
+    virtual void act_player(std::vector<size_t>& alive_ids,
+                            NightActions& night_actions,
+                            std::vector<Shared_pointer<Player>>) override {
+        std::cout << "Mafia:" << std::endl;
+        for (auto i : known_mafia) {
+            std::cout << i << " ";
+        }
+        std::cout << std::endl;
+        if (is_boss) {
+            std::cout << "You are a mafia boss. Who will the mafia kill on your orders?" << std::endl
+                      << "Choose one of:" << std::endl;
+            for (auto i : alive_ids) {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+            size_t choice;
+            std::cin >> choice;
+            night_actions.killers[choice].push_back(id);
+        } else {
+            std::cout << "You are not a mafia boss. Tonight you will not decide who the mafia will kill." << std::endl;
         }
     }
 };
@@ -321,6 +450,18 @@ public:
             }
             i++;
         }
+    }
+    virtual void act_player(std::vector<size_t>& alive_ids,
+                            NightActions& night_actions,
+                            std::vector<Shared_pointer<Player>>) override {
+        std::cout << "Choose one of:" << std::endl;
+        for (auto i : alive_ids) {
+            std::cout << i << " ";
+        }
+        std::cout << std::endl;
+        size_t choice;
+        std::cin >> choice;
+        night_actions.killers[choice].push_back(id);
     }
 };
 
