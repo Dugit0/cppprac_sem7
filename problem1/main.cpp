@@ -8,6 +8,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <coroutine>
 #include <string>
 #include <ranges>
 
@@ -18,6 +19,20 @@
 
 
 namespace view = std::ranges::views;
+
+
+// Based on https://habr.com/ru/articles/798935/
+struct promise;
+struct Task : std::coroutine_handle<promise> {
+    using promise_type = ::promise;
+};
+struct promise {
+    Task get_return_object() { return Task{}; }
+    std::suspend_always initial_suspend() noexcept { return {}; }
+    std::suspend_always final_suspend() noexcept { return {}; }
+    void return_void() {}
+    void unhandled_exception() {}
+};
 
 
 template<typename T>
@@ -72,11 +87,13 @@ public:
         is_boss = false;
     };
     virtual ~Player() {};
-    virtual size_t vote(std::vector<size_t> alive_ids) {
+    virtual void vote(std::vector<size_t> alive_ids, size_t& value) {
         if (is_real_player) {
-            return vote_player(alive_ids);
+            vote_player(alive_ids, value);
+            return;
         } else {
-            return vote_ai(alive_ids);
+            vote_ai(alive_ids, value);
+            return;
         }
     }
     virtual void act(std::vector<size_t> alive_ids,
@@ -88,8 +105,8 @@ public:
             act_ai(alive_ids, night_actions, players);
         }
     }
-    virtual size_t vote_ai(std::vector<size_t>& alive_ids) = 0;
-    virtual size_t vote_player(std::vector<size_t>& alive_ids) {
+    virtual void vote_ai(std::vector<size_t>& alive_ids, size_t& value) = 0;
+    virtual void vote_player(std::vector<size_t>& alive_ids, size_t& value) {
         std::cout << "Voting! Choose which candidate to vote for from the following:" << std::endl;
         for (auto i : alive_ids) {
             std::cout << i << " ";
@@ -97,7 +114,8 @@ public:
         std::cout << std::endl;
         size_t res;
         std::cin >> res;
-        return res;
+        value = res;
+        return;
     }
     virtual void act_ai(std::vector<size_t>& alive_ids,
                         NightActions& night_actions,
@@ -105,7 +123,7 @@ public:
     virtual void act_player(std::vector<size_t>& alive_ids,
                             NightActions& night_actions,
                             std::vector<Shared_pointer<Player>> players) = 0;
-    
+
     bool alive;
     bool is_real_player;
     bool is_boss;
@@ -122,17 +140,19 @@ public:
         role = "civilian";
     }
     virtual ~Civilian() {};
-    
-    virtual size_t vote_ai(std::vector<size_t>& alive_ids) override {
+
+    virtual void vote_ai(std::vector<size_t>& alive_ids, size_t& value) override {
         simple_shuffle(alive_ids);
         size_t i = 0;
         while (i < alive_ids.size()) {
             if (alive_ids[i] != id) {
-                return alive_ids[i];
+                value = alive_ids[i];
+                return;
             }
             i++;
         }
-        return 0;
+        value = 0;
+        return;
     }
     virtual void act_ai(std::vector<size_t>&, NightActions&, std::vector<Shared_pointer<Player>>) override {
         return;
@@ -152,15 +172,17 @@ public:
         role = "commissar";
     }
     virtual ~Commissar() {};
-    
-    virtual size_t vote_ai(std::vector<size_t>& alive_ids) override {
+
+    virtual void vote_ai(std::vector<size_t>& alive_ids, size_t& value) override {
         simple_shuffle(alive_ids);
         for (size_t i = 0; i < known_mafia.size(); i++) {
             if (std::find(alive_ids.begin(), alive_ids.end(), known_mafia[i]) != alive_ids.end()) {
-                return known_mafia[i];
+                value = known_mafia[i];
+                return;
             }
         }
-        return Civilian::vote_ai(alive_ids);
+        Civilian::vote_ai(alive_ids, value);
+        return;
     }
     virtual void act_ai(std::vector<size_t>& alive_ids,
                         NightActions& night_actions,
@@ -358,17 +380,19 @@ public:
         role = "mafia";
     }
     virtual ~Mafia() {}
-    
-    virtual size_t vote_ai(std::vector<size_t>& alive_ids) override {
+
+    virtual void vote_ai(std::vector<size_t>& alive_ids, size_t& value) override {
         simple_shuffle(alive_ids);
         size_t i = 0;
         while (i < alive_ids.size()) {
             if (std::find(known_mafia.begin(), known_mafia.end(), alive_ids[i]) == known_mafia.end()) {
-                return alive_ids[i];
+                value = alive_ids[i];
+                return;
             }
             i++;
         }
-        return 0;
+        value = 0;
+        return;
     }
     virtual void act_ai(std::vector<size_t>& alive_ids,
                         NightActions& night_actions,
@@ -426,17 +450,19 @@ public:
         role = "maniac";
     }
     virtual ~Maniac() {};
-    
-    virtual size_t vote_ai(std::vector<size_t>& alive_ids) override {
+
+    virtual void vote_ai(std::vector<size_t>& alive_ids, size_t& value) override {
         simple_shuffle(alive_ids);
         size_t i = 0;
         while (i < alive_ids.size()) {
             if (alive_ids[i] != id) {
-                return alive_ids[i];
+                value = alive_ids[i];
+                return;
             }
             i++;
         }
-        return 0;
+        value = 0;
+        return;
     }
     virtual void act_ai(std::vector<size_t>& alive_ids,
                         NightActions& night_actions,
@@ -478,7 +504,7 @@ public:
     size_t bull_id;
 // "civilian", "mafia", "maniac"
 
-    explicit Game(unsigned int players_num_, unsigned int mafia_modifier_ = 3) : 
+    explicit Game(unsigned int players_num_, unsigned int mafia_modifier_ = 3) :
         players_num(players_num_),
         mafia_modifier(mafia_modifier_)
     {}
@@ -504,7 +530,7 @@ public:
     std::vector<std::string> get_random_roles() {
         unsigned int mafia_num = players_num / mafia_modifier;
         std::vector<std::string> random_roles;
-        
+
         // for (auto a : buf) std::cout << a << " "; std::cout << std::endl;
         add_random_roles(mafia_roles, mafia_num, "mafia", random_roles);
         random_roles.push_back("maniac");
@@ -518,7 +544,7 @@ public:
         players.clear();
         logger = new Logger{"init.log"};
         logger->log(Loglevel::INFO, "--- INIT ---");
-        
+
         std::cout << "Do you want to play? Select the number of the player (from 0 to " << roles.size() - 1
                   << ") you want to play or -1 if you don't want to." << std::endl;
         int choice;
@@ -584,7 +610,7 @@ public:
         auto mafia = players |
                      view::filter([](auto p) { return p->alive; }) |
                      view::filter([](auto p) { return p->team == "mafia"; });
-        if (!mafia.empty() && 
+        if (!mafia.empty() &&
                 (mafia | view::filter([](auto p) { return p->is_boss; })).empty()) {
             std::vector<Shared_pointer<Player>> mafia_vec{mafia.begin(), mafia.end()};
             simple_shuffle(mafia_vec);
@@ -691,7 +717,8 @@ public:
             votes[id] = 0;
         }
         for (const auto& player : alives) {
-            auto value = player->vote(alives_ids);
+            size_t value = 0;
+            player->vote(alives_ids, value);
             votes[value]++;
             logger->log(Loglevel::INFO,
                     TPrettyPrinter().f("Player ").f(player->id).f(" voted for player ").f(value).Str());
@@ -714,9 +741,9 @@ public:
         for (const auto& player : alives) {
             player->act(alives_ids, night_actions, players);
         }
-        
+
         // print(night_actions.killers);
-        
+
         // Bull avoid maniac's attempt to kill him
         for (size_t i = 0; i < night_actions.killers[bull_id].size(); i++) {
             auto killer_id = night_actions.killers[bull_id][i];
