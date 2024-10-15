@@ -498,6 +498,19 @@ public:
 };
 
 
+
+template<typename T>
+concept PlayerConcept = requires(T player,
+                                 std::vector<size_t> ids,
+                                 size_t value,
+                                 NightActions night_actions,
+                                 std::vector<Shared_pointer<Player>> players) {
+    { player.vote(ids, value) } -> std::same_as<Task>;
+    { player.act(ids, night_actions, players) } -> std::same_as<Task>;
+};
+
+
+template<PlayerConcept Player>
 class Game {
 public:
     Logger* logger;
@@ -854,7 +867,7 @@ int main(void) {
     for (int i = 0; i < 200; i++) {
         std::srand(5);
         std::cout << "========== SRAND = " << i << " ==========" << std::endl;
-        auto game = Game(10);
+        auto game = Game<Player>(10);
         auto roles = game.get_random_roles();
         game.init_players(roles);
         game.main_loop();
