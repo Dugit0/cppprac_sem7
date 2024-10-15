@@ -1,6 +1,6 @@
 GENERATES = main.out
 MY_OBG_FILES = *.o
-TRASH = *.log
+TRASH = logs/*.log
 CC = g++
 CPPFLAGS = -fsanitize=address,undefined,signed-integer-overflow,pointer-compare,pointer-subtract,leak,bounds,pointer-overflow -O2 -Wall -Wextra -Wpedantic -std=c++23 -lm
 

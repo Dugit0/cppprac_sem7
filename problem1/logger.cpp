@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <filesystem>
 
 // Enum to represent log levels
 enum class Loglevel { DEBUG, INFO, WARNING, ERROR, CRITICAL };
@@ -14,7 +15,9 @@ public:
     // Constructor: Opens the log file in append mode
     Logger(const std::string& filename)
     {
-        logFile.open(filename, std::ios::app);
+        logsDir = std::filesystem::current_path() / "logs";
+        std::filesystem::create_directory(logsDir);
+        logFile.open(logsDir / filename, std::ios::app);
         if (!logFile.is_open()) {
             std::cerr << "Error opening log file." << std::endl;
         }
@@ -52,6 +55,7 @@ public:
     }
 
 private:
+    std::filesystem::path logsDir;
     std::ofstream logFile; // File stream for the log file
 
     // Converts log level to a string for output
@@ -82,4 +86,3 @@ private:
 //     logger.log(Loglevel::ERROR, "An error occurred.");
 //     return 0;
 // }
-

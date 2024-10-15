@@ -1,4 +1,5 @@
 #define DEBUG_MODE
+#define DEBUG_RANDOM
 
 #include <iostream>
 #include <cstdlib>
@@ -9,6 +10,7 @@
 #include <map>
 #include <set>
 #include <coroutine>
+#include <future>
 #include <string>
 #include <ranges>
 
@@ -25,11 +27,12 @@ namespace view = std::ranges::views;
 struct promise;
 struct Task : std::coroutine_handle<promise> {
     using promise_type = ::promise;
+    std::coroutine_handle<promise_type> handle;
 };
 struct promise {
     Task get_return_object() { return Task{}; }
-    std::suspend_always initial_suspend() noexcept { return {}; }
-    std::suspend_always final_suspend() noexcept { return {}; }
+    std::suspend_never initial_suspend() noexcept { return {}; }
+    std::suspend_never final_suspend() noexcept { return {}; }
     void return_void() {}
     void unhandled_exception() {}
 };
@@ -39,6 +42,7 @@ template<typename T>
 void print(T value) {
     std::cout << Format(value) << std::endl;
 }
+
 
 template<typename T>
 void simple_shuffle(T& container) {
@@ -87,22 +91,24 @@ public:
         is_boss = false;
     };
     virtual ~Player() {};
-    virtual void vote(std::vector<size_t> alive_ids, size_t& value) {
+    virtual Task vote(std::vector<size_t> alive_ids, size_t& value) {
         if (is_real_player) {
             vote_player(alive_ids, value);
-            return;
+            co_return;
         } else {
             vote_ai(alive_ids, value);
-            return;
+            co_return;
         }
     }
-    virtual void act(std::vector<size_t> alive_ids,
+    virtual Task act(std::vector<size_t> alive_ids,
                      NightActions& night_actions,
                      std::vector<Shared_pointer<Player>> players) {
         if (is_real_player) {
             act_player(alive_ids, night_actions, players);
+            co_return;
         } else {
             act_ai(alive_ids, night_actions, players);
+            co_return;
         }
     }
     virtual void vote_ai(std::vector<size_t>& alive_ids, size_t& value) = 0;
@@ -716,13 +722,38 @@ public:
         for (auto id: alives_ids) {
             votes[id] = 0;
         }
+
+#ifndef DEBUG_RANDOM
+        //// Using futures
+        std::vector<std::future<void>> futures {};
         for (const auto& player : alives) {
+            futures.push_back(
+                std::async(std::launch::async, [&alives_ids, &player, &votes, this]() {
+                    size_t value = 0;
+                    player->vote(alives_ids, value);
+                    votes[value]++;
+                    logger->log(Loglevel::INFO,
+                            TPrettyPrinter().f("Player ").f(player->id).f(" voted for player ").f(value).Str());
+                })
+            );
+        }
+        for (auto& future : futures) {
+            future.get();
+        }
+        ////
+#else
+        //// Not using futures
+        std::vector<Shared_pointer<Player>> sh_alives{alives.begin(), alives.end()};
+        simple_shuffle(sh_alives);
+        for (const auto& player : sh_alives) {
             size_t value = 0;
             player->vote(alives_ids, value);
             votes[value]++;
             logger->log(Loglevel::INFO,
                     TPrettyPrinter().f("Player ").f(player->id).f(" voted for player ").f(value).Str());
         }
+        ////
+#endif
         auto key_val = std::max_element(votes.begin(), votes.end(),
                 [](const std::pair<int, int>& p1, const std::pair<int, int>& p2) {
                     return p1.second < p2.second;
@@ -738,9 +769,28 @@ public:
         std::vector<size_t> alives_ids{alives_ids_rng.begin(), alives_ids_rng.end()};
         NightActions night_actions{players_num};
         night_actions.reset();
+
+#ifndef DEBUG_RANDOM
+        //// Using futures
+        std::vector<std::future<void>> futures {};
+        for (const auto& player : alives) {
+            futures.push_back(
+                std::async(std::launch::async, [&alives_ids, &player, &night_actions, this]() {
+                    player->act(alives_ids, night_actions, players);
+                })
+            );
+        }
+        for (auto& future : futures) {
+            future.get();
+        }
+        ////
+#else
+        //// Not using futures
         for (const auto& player : alives) {
             player->act(alives_ids, night_actions, players);
         }
+        ////
+#endif
 
         // print(night_actions.killers);
 
