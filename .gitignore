@@ -33,3 +33,11 @@
 
 # Logs
 *.log
+
+# LaTeX
+*.aux
+*.log
+*.dvi
+*.toc
+*.out
+*.idx
