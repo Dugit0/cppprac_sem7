@@ -22,18 +22,6 @@ auto simple_choice(T container) {
 }
 
 
-class MainLoop {
-public:
-    MainLoop() {
-        ;
-    }
-
-    void start() {
-        ;
-    }
-};
-
-
 class VSolution {
 public:
     unsigned num_proc;
@@ -65,8 +53,65 @@ public:
         start_temperature = t_temperature;
         temperature = t_temperature;
     }
-    virtual void change_temperature(unsigned i);
+    virtual void change_temperature(unsigned i) = 0;
     virtual ~VTemperature() {};
+};
+
+using VSolutionPtr = std::shared_ptr<VSolution>;
+
+class MainLoop {
+    // TODO srand
+public:
+    VSolutionPtr solution;
+    VVariation& variation;
+    VTemperature& temp_law;
+    MainLoop(std::shared_ptr<VSolution> t_solution, VVariation& t_variation, VTemperature& t_temp_law)
+        : solution(t_solution)
+        , variation(t_variation)
+        , temp_law(t_temp_law)
+    {}
+
+    VSolutionPtr start() {
+        unsigned MAX_ITER = 100;
+
+        auto best_solution = solution->copy();
+        auto cur_quality = best_solution->test();
+
+        unsigned cur_iteration = 0;
+        unsigned iter_without_improve = 0;
+        while (true) {
+            // printf("----\nIteration %u\n", cur_iteration);
+            auto new_solution = solution->copy();
+            new_solution = variation.variation(*new_solution);
+            // printf("New variation:\n");
+            // new_solution->print_solution();
+            // printf("%u, %u", new_solution->test(), solution->test());
+            int delta = (int) new_solution->test() - (int) solution->test();
+            if (delta <= 0) {
+                solution = new_solution;
+            } else {
+                double p = std::exp(- (double) delta / temp_law.temperature);
+                if ((double) rand() / (RAND_MAX) <= p) {
+                    solution = new_solution;
+                }
+            }
+            // printf("New solution:\n");
+            // solution->print_solution();
+            // printf("cur_quality = %u, solution.test = %u\n", cur_quality, solution->test());
+            if (cur_quality > solution->test()) {
+                best_solution = solution;
+                cur_quality = best_solution->test();
+                iter_without_improve = 0;
+            } else {
+                iter_without_improve++;
+            }
+            if (iter_without_improve > MAX_ITER) {
+                return best_solution;
+            }
+            cur_iteration++;
+            temp_law.change_temperature(cur_iteration);
+        }
+    }
 };
 
 
@@ -124,7 +169,7 @@ public:
 
 class Variation : public VVariation {
 public:
-    std::shared_ptr<VSolution> variation(VSolution& solution) override {
+    VSolutionPtr variation(VSolution& solution) override {
         auto no_empty_proc = view::iota((unsigned) 0, solution.num_proc) |
                              view::filter([&](auto i) { return !solution.table[i].empty(); });
         unsigned proc = simple_choice(std::vector<unsigned>(no_empty_proc.begin(),
@@ -147,6 +192,7 @@ public:
 
 class BoltzmannTemperature : public VTemperature {
 public:
+    BoltzmannTemperature(double t_temperature) : VTemperature(t_temperature) {};
     void change_temperature(unsigned i) override {
         temperature = start_temperature / std::log(1 + i);
     }
@@ -154,6 +200,7 @@ public:
 
 
 class CauchyTemperature : public VTemperature {
+    CauchyTemperature(double t_temperature) : VTemperature(t_temperature) {};
     void change_temperature(unsigned i) override {
         temperature = start_temperature / (1 + (double) i);
     }
@@ -161,23 +208,31 @@ class CauchyTemperature : public VTemperature {
 
 
 class MixedTemperature : public VTemperature {
+    MixedTemperature(double t_temperature) : VTemperature(t_temperature) {};
     void change_temperature(unsigned i) override {
         temperature = start_temperature * (std::log(1 + i) / (1 + (double) i));
     }
 };
 
+
+// ================================================================================================
+
+
+
 } // end namespace sa
 
 int main(void) {
     // sa::MainLoop main_loop;
-    sa::Solution solution(5, {3, 2, 3, 4});
-    solution.init_approximation();
-    auto var = sa::Variation();
-    auto new_solution = var.variation(solution);
-    solution.print_solution();
-    std::cout << solution.test() << std::endl;
-    std::cout << "=========" << std::endl;
-    new_solution->print_solution();
-    std::cout << new_solution->test() << std::endl;
+    srand(42); // TODO Delete
+    unsigned num_proc = 5;
+    std::vector<unsigned> prob_lens = {3, 4, 3, 2};
+    auto solution = std::make_shared<sa::Solution>(num_proc, prob_lens);
+    solution->init_approximation();
+    auto variation = sa::Variation();
+    auto temp_law = sa::BoltzmannTemperature(1000.0);
+    auto main_loop = sa::MainLoop(solution, variation, temp_law);
+    auto best_solution = main_loop.start();
+    best_solution->print_solution();
+    std::cout << best_solution->test() << std::endl;
     return 0;
 }
