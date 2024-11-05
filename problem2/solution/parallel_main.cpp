@@ -9,6 +9,9 @@
 #include <cmath>
 #include <chrono>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
@@ -23,6 +26,7 @@ int main(int argc, char** argv) {
     }
     unsigned NPROC = 4;
     double START_TEMPERATURE = 1000.0;
+    unsigned MAX_ITER_WITHOUT_IMPR = 10;
     FILE* f_inp = std::fopen(argv[1], "r");
     unsigned num_proc, num_prob;
     std::fscanf(f_inp, "%u,%u,\n", &num_proc, &num_prob);
@@ -42,25 +46,50 @@ int main(int argc, char** argv) {
     auto best_solution = solution->copy();
     auto best_test = best_solution->test();
 
-    std::vector<pid_t> pids{};
-    for (unsigned i = 0; i < NPROC; i++) {
-        pid_t pid = fork();
-        if (pid == 0) {
-            // son
-            auto main_loop = sa::MainLoop(solution, variation, temp_law);
-            auto start = std::chrono::high_resolution_clock::now();
-            auto best_solution = main_loop.start();
-            auto finish = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> duration = finish - start;
-            std::cout << "Duration: " << duration.count() << std::endl;
-            std::cout << "Test: " << best_solution->test() << std::endl;
-            return 0;
-        } else {
-            pids.push_back(pid);
+    auto start = std::chrono::high_resolution_clock::now();
+
+    unsigned iter_without_imp = 0;
+    while (iter_without_imp < MAX_ITER_WITHOUT_IMPR) {
+        std::vector<pid_t> pids{};
+        std::vector<int> socket_desc{};
+        for (unsigned i = 0; i < NPROC; i++) {
+            int sd[2];
+            socketpair(AF_UNIX, SOCK_STREAM, 0, sd);
+
+            pid_t pid = fork();
+            if (pid == 0) {
+                // son
+                close(sd[0]);
+                auto main_loop = sa::MainLoop(solution, variation, temp_law);
+                auto best_solution = main_loop.start();
+                best_solution->serialize(sd[1]);
+                close(sd[1]);
+                return 0;
+            } else {
+                close(sd[1]);
+                pids.push_back(pid);
+                socket_desc.push_back(sd[0]);
+            }
         }
+        for (unsigned i = 0; i < NPROC; i++) {
+            // waitpid mb?
+            auto son_solution = sa::deserialize(socket_desc[i]);
+            close(socket_desc[i]);
+            if (son_solution->test() < best_test) {
+                best_test = son_solution->test();
+                best_solution = son_solution;
+                iter_without_imp = 0;
+            }
+        }
+        int status;
+        while (wait(&status) != -1) {}
+        iter_without_imp++;
     }
-    int status;
-    while (wait(&status) != -1) {}
+
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = finish - start;
+    std::cout << "Duration: " << duration.count() << std::endl;
+    std::cout << "Test: " << best_solution->test() << std::endl;
 
     return 0;
 }

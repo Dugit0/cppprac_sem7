@@ -31,6 +31,7 @@ public:
     virtual void init_approximation() = 0;
     virtual unsigned test() = 0;
     virtual std::shared_ptr<VSolution> copy() = 0;
+    virtual void serialize(int fd) = 0;
     virtual void print_solution() = 0;
 
     virtual ~VSolution() {};
@@ -152,6 +153,25 @@ public:
         return result;
     }
 
+    void serialize(int fd) override {
+        write(fd, &(num_proc), sizeof(num_proc));
+        size_t prob_lens_size = prob_lens.size();
+        write(fd, &prob_lens_size, sizeof(prob_lens_size));
+        for (const auto& len: prob_lens) {
+            write(fd, &len, sizeof(len));
+        }
+        size_t table_size = table.size();
+        write(fd, &table_size, sizeof(table_size));
+        for (const auto& proc : table) {
+            size_t proc_size = proc.size();
+            write(fd, &proc_size, sizeof(proc_size));
+            for (const auto& i : proc) {
+                write(fd, &i, sizeof(i));
+            }
+        }
+    }
+
+
     std::shared_ptr<VSolution> copy() override {
         auto new_solution = std::make_shared<Solution>(num_proc, prob_lens);
         new_solution->table = table;
@@ -171,6 +191,34 @@ public:
         }
     }
 };
+
+
+VSolutionPtr deserialize(int fd) {
+    unsigned num_proc;
+    read(fd, &(num_proc), sizeof(num_proc));
+    size_t prob_lens_size;
+    read(fd, &prob_lens_size, sizeof(prob_lens_size));
+    std::vector<unsigned> prob_lens(prob_lens_size, 0);
+    for (size_t i = 0; i < prob_lens_size; i++) {
+        read(fd, &(prob_lens[i]), sizeof(prob_lens[i]));
+    }
+
+    size_t table_size;
+    read(fd, &table_size, sizeof(table_size));
+    std::vector<std::vector<unsigned>> table(table_size, std::vector<unsigned>{});
+    for (size_t i = 0; i < table_size; i++) {
+        size_t proc_size;
+        read(fd, &proc_size, sizeof(proc_size));
+        for (size_t j = 0; j < proc_size; j++) {
+            unsigned prob;
+            read(fd, &prob, sizeof(prob));
+            table[i].push_back(prob);
+        }
+    }
+    VSolutionPtr new_solution = std::make_shared<Solution>(num_proc, prob_lens);
+    new_solution->table = table;
+    return new_solution;
+}
 
 
 class Variation : public VVariation {
