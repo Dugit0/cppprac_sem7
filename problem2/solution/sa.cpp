@@ -149,9 +149,9 @@ public:
     }
 
     std::shared_ptr<VSolution> copy() override {
-        auto new_solution = Solution(num_proc, prob_lens);
-        new_solution.table = table;
-        return std::make_shared<Solution>(new_solution);
+        auto new_solution = std::make_shared<Solution>(num_proc, prob_lens);
+        new_solution->table = table;
+        return new_solution;
     }
 
     void print_solution() override {
