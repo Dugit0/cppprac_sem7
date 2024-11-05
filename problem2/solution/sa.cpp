@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <algorithm>
 #include <random>
+#include <time.h>
 #include <vector>
 #include <memory>
 #include <ranges>
@@ -60,7 +61,6 @@ public:
 using VSolutionPtr = std::shared_ptr<VSolution>;
 
 class MainLoop {
-    // TODO srand
 public:
     VSolutionPtr solution;
     VVariation& variation;
@@ -69,7 +69,9 @@ public:
         : solution(t_solution)
         , variation(t_variation)
         , temp_law(t_temp_law)
-    {}
+    {
+        srand(time(nullptr));
+    }
 
     VSolutionPtr start() {
         unsigned MAX_ITER = 100;
@@ -86,7 +88,7 @@ public:
             // printf("New variation:\n");
             // new_solution->print_solution();
             // printf("%u, %u", new_solution->test(), solution->test());
-            int delta = (int) new_solution->test() - (int) solution->test();
+            long long delta = (long long) new_solution->test() - (long long) solution->test();
             if (delta <= 0) {
                 solution = new_solution;
             } else {
@@ -220,19 +222,3 @@ class MixedTemperature : public VTemperature {
 
 
 } // end namespace sa
-
-int main(void) {
-    // sa::MainLoop main_loop;
-    srand(42); // TODO Delete
-    unsigned num_proc = 5;
-    std::vector<unsigned> prob_lens = {3, 4, 3, 2};
-    auto solution = std::make_shared<sa::Solution>(num_proc, prob_lens);
-    solution->init_approximation();
-    auto variation = sa::Variation();
-    auto temp_law = sa::BoltzmannTemperature(1000.0);
-    auto main_loop = sa::MainLoop(solution, variation, temp_law);
-    auto best_solution = main_loop.start();
-    best_solution->print_solution();
-    std::cout << best_solution->test() << std::endl;
-    return 0;
-}
