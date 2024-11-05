@@ -9,6 +9,7 @@
 #include <cmath>
 #include <chrono>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 
@@ -20,6 +21,7 @@ int main(int argc, char** argv) {
     if (argc < 2) {
         return 1;
     }
+    unsigned NPROC = 4;
     double START_TEMPERATURE = 1000.0;
     FILE* f_inp = std::fopen(argv[1], "r");
     unsigned num_proc, num_prob;
@@ -36,12 +38,29 @@ int main(int argc, char** argv) {
     // auto temp_law = sa::BoltzmannTemperature(START_TEMPERATURE);
     auto temp_law = sa::CauchyTemperature(START_TEMPERATURE);
     // auto temp_law = sa::MixedTemperature(START_TEMPERATURE);
-    auto main_loop = sa::MainLoop(solution, variation, temp_law);
-    auto start = std::chrono::high_resolution_clock::now();
-    auto best_solution = main_loop.start();
-    auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = finish - start;
-    std::cout << "Duration: " << duration.count() << std::endl;
-    std::cout << "Test: " << best_solution->test() << std::endl;
+
+    auto best_solution = solution->copy();
+    auto best_test = best_solution->test();
+
+    std::vector<pid_t> pids{};
+    for (unsigned i = 0; i < NPROC; i++) {
+        pid_t pid = fork();
+        if (pid == 0) {
+            // son
+            auto main_loop = sa::MainLoop(solution, variation, temp_law);
+            auto start = std::chrono::high_resolution_clock::now();
+            auto best_solution = main_loop.start();
+            auto finish = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> duration = finish - start;
+            std::cout << "Duration: " << duration.count() << std::endl;
+            std::cout << "Test: " << best_solution->test() << std::endl;
+            return 0;
+        } else {
+            pids.push_back(pid);
+        }
+    }
+    int status;
+    while (wait(&status) != -1) {}
+
     return 0;
 }
