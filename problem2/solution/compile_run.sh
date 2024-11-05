@@ -7,8 +7,8 @@ function cmcgpp() {
 }
 
 echo "======== COMPILE ========" &&
-cmcgpp main.cpp &&
+cmcgpp parallel_main.cpp &&
 echo "========== RUN ==========" &&
-./main.out
+./parallel_main.out
 
 # echo "============ ============"
