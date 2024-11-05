@@ -41,3 +41,7 @@
 *.toc
 *.out
 *.idx
+
+# Python
+venv
+__pycache__

@@ -82,7 +82,7 @@ public:
         unsigned cur_iteration = 0;
         unsigned iter_without_improve = 0;
         while (true) {
-            // printf("----\nIteration %u\n", cur_iteration);
+            // printf("----\nIt = %u\n", cur_iteration);
             auto new_solution = solution->copy();
             new_solution = variation.variation(*new_solution);
             // printf("New variation:\n");
@@ -90,9 +90,11 @@ public:
             // printf("%u, %u", new_solution->test(), solution->test());
             long long delta = (long long) new_solution->test() - (long long) solution->test();
             if (delta <= 0) {
+                // printf("d <= 0\n");
                 solution = new_solution;
             } else {
                 double p = std::exp(- (double) delta / temp_law.temperature);
+                // printf("d > 0, p = %lf\n", p);
                 if ((double) rand() / (RAND_MAX) <= p) {
                     solution = new_solution;
                 }
@@ -101,13 +103,16 @@ public:
             // solution->print_solution();
             // printf("cur_quality = %u, solution.test = %u\n", cur_quality, solution->test());
             if (cur_quality > solution->test()) {
+                // printf("Improve\n");
                 best_solution = solution;
                 cur_quality = best_solution->test();
                 iter_without_improve = 0;
             } else {
                 iter_without_improve++;
+                // printf("Not improve (%u)\n", iter_without_improve);
             }
             if (iter_without_improve > MAX_ITER) {
+                printf("Iterations: %u\n", cur_iteration);
                 return best_solution;
             }
             cur_iteration++;
@@ -118,7 +123,6 @@ public:
 
 
 // ================================================================================================
-
 
 class Solution : public VSolution {
 public:
@@ -202,6 +206,7 @@ public:
 
 
 class CauchyTemperature : public VTemperature {
+public:
     CauchyTemperature(double t_temperature) : VTemperature(t_temperature) {};
     void change_temperature(unsigned i) override {
         temperature = start_temperature / (1 + (double) i);
@@ -210,6 +215,7 @@ class CauchyTemperature : public VTemperature {
 
 
 class MixedTemperature : public VTemperature {
+public:
     MixedTemperature(double t_temperature) : VTemperature(t_temperature) {};
     void change_temperature(unsigned i) override {
         temperature = start_temperature * (std::log(1 + i) / (1 + (double) i));
