@@ -21,12 +21,12 @@
 
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
+    if (argc < 3) {
         return 1;
     }
-    unsigned NPROC = 4;
     double START_TEMPERATURE = 1000.0;
-    unsigned MAX_ITER_WITHOUT_IMPR = 10;
+    unsigned MAX_ITER_WITHOUT_IMPR = 100;
+
     FILE* f_inp = std::fopen(argv[1], "r");
     unsigned num_proc, num_prob;
     std::fscanf(f_inp, "%u,%u,\n", &num_proc, &num_prob);
@@ -35,6 +35,9 @@ int main(int argc, char** argv) {
         std::fscanf(f_inp, "%u,", &(prob_lens[i]));
     }
     std::fclose(f_inp);
+
+    char* chr_end{};
+    unsigned NPROC = std::strtol(argv[2], &chr_end, 10);
 
     auto solution = std::make_shared<sa::Solution>(num_proc, prob_lens);
     solution->init_approximation();
@@ -78,6 +81,7 @@ int main(int argc, char** argv) {
             if (son_solution->test() < best_test) {
                 best_test = son_solution->test();
                 best_solution = son_solution;
+                printf("New best_solution : %u\n", best_test);
                 iter_without_imp = 0;
             }
         }

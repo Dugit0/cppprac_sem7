@@ -9,6 +9,6 @@ function cmcgpp() {
 echo "======== COMPILE ========" &&
 cmcgpp parallel_main.cpp &&
 echo "========== RUN ==========" &&
-./parallel_main.out 'inputs/input.csv'
+./parallel_main.out 'inputs/input.csv' 4
 
 # echo "============ ============"

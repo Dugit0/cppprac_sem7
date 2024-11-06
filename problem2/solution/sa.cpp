@@ -104,7 +104,10 @@ public:
             // solution->print_solution();
             // printf("cur_quality = %u, solution.test = %u\n", cur_quality, solution->test());
             if (cur_quality > solution->test()) {
-                // printf("Improve\n");
+                printf("Improve %u | %u | %u\n",
+                        cur_quality,
+                        solution->test(),
+                        cur_iteration);
                 best_solution = solution;
                 cur_quality = best_solution->test();
                 iter_without_improve = 0;
@@ -113,7 +116,7 @@ public:
                 // printf("Not improve (%u)\n", iter_without_improve);
             }
             if (iter_without_improve > MAX_ITER) {
-                printf("Iterations: %u\n", cur_iteration);
+                // printf("Iterations: %u\n", cur_iteration);
                 return best_solution;
             }
             cur_iteration++;
