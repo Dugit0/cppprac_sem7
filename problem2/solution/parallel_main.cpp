@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     double START_TEMPERATURE = 1000.0;
-    unsigned MAX_ITER_WITHOUT_IMPR = 100;
+    unsigned MAX_ITER_WITHOUT_IMPR = 10;
 
     FILE* f_inp = std::fopen(argv[1], "r");
     unsigned num_proc, num_prob;
@@ -63,9 +63,9 @@ int main(int argc, char** argv) {
             if (pid == 0) {
                 // son
                 close(sd[0]);
-                auto main_loop = sa::MainLoop(solution, variation, temp_law);
-                auto best_solution = main_loop.start();
-                best_solution->serialize(sd[1]);
+                auto main_loop = sa::MainLoop(best_solution, variation, temp_law);
+                auto son_solution = main_loop.start();
+                son_solution->serialize(sd[1]);
                 close(sd[1]);
                 return 0;
             } else {
@@ -75,19 +75,20 @@ int main(int argc, char** argv) {
             }
         }
         for (unsigned i = 0; i < NPROC; i++) {
-            // waitpid mb?
             auto son_solution = sa::deserialize(socket_desc[i]);
             close(socket_desc[i]);
             if (son_solution->test() < best_test) {
                 best_test = son_solution->test();
                 best_solution = son_solution;
-                printf("New best_solution : %u\n", best_test);
+                printf("Get new best_solution %u\nFrom son %u\n", best_test, i);
                 iter_without_imp = 0;
             }
         }
         int status;
         while (wait(&status) != -1) {}
         iter_without_imp++;
+        sleep(1);
+        printf("============ MAIN LOOP ITER WITHOUT IMPROVE: %u ============\n", iter_without_imp);
     }
 
     auto finish = std::chrono::high_resolution_clock::now();

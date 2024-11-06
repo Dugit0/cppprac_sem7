@@ -38,6 +38,7 @@ int main(int argc, char** argv) {
     auto best_solution = main_loop.start();
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = finish - start;
+    // best_solution->print_solution();
     std::cout << "Duration: " << duration.count() << std::endl;
     std::cout << "Test: " << best_solution->test() << std::endl;
     return 0;

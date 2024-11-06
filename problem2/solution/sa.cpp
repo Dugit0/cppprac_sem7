@@ -71,10 +71,12 @@ public:
         , variation(t_variation)
         , temp_law(t_temp_law)
     {
-        srand(time(nullptr));
+        printf("%b, %b\n", time(nullptr), (getpid()<<16)); fflush(stdout);
+        srand(time(nullptr) ^ (getpid()<<16));
     }
 
     VSolutionPtr start() {
+        // printf("Start random %d\n", rand());
         unsigned MAX_ITER = 100;
 
         auto best_solution = solution->copy();
@@ -90,13 +92,15 @@ public:
             // new_solution->print_solution();
             // printf("%u, %u", new_solution->test(), solution->test());
             long long delta = (long long) new_solution->test() - (long long) solution->test();
+            // printf("delta = %lld\n", delta); fflush(stdout);
             if (delta <= 0) {
-                // printf("d <= 0\n");
+                // printf("d <= 0\n"); fflush(stdout);
                 solution = new_solution;
             } else {
-                double p = std::exp(- (double) delta / temp_law.temperature);
-                // printf("d > 0, p = %lf\n", p);
-                if ((double) rand() / (RAND_MAX) <= p) {
+                long double p = std::exp(- (long double) delta / temp_law.temperature);
+                // printf("d > 0, p = %Lf\n", p); fflush(stdout);
+                if (((long double) rand()) / RAND_MAX <= p) {
+                    // printf("p-mutation\n"); fflush(stdout);
                     solution = new_solution;
                 }
             }
@@ -104,10 +108,11 @@ public:
             // solution->print_solution();
             // printf("cur_quality = %u, solution.test = %u\n", cur_quality, solution->test());
             if (cur_quality > solution->test()) {
-                printf("Improve %u | %u | %u\n",
-                        cur_quality,
-                        solution->test(),
-                        cur_iteration);
+                // printf("Improve %u | %u | %u\n",
+                //         cur_quality,
+                //         solution->test(),
+                //         cur_iteration);
+                // fflush(stdout);
                 best_solution = solution;
                 cur_quality = best_solution->test();
                 iter_without_improve = 0;
@@ -117,6 +122,7 @@ public:
             }
             if (iter_without_improve > MAX_ITER) {
                 // printf("Iterations: %u\n", cur_iteration);
+                // printf("Best solution: %u\n", best_solution->test());
                 return best_solution;
             }
             cur_iteration++;
@@ -140,7 +146,8 @@ public:
 
     void init_approximation() override {
         for (unsigned i = 0; i < prob_lens.size(); i++) {
-            table[0].push_back(prob_lens[i]);
+            unsigned proc = rand() % num_proc;
+            table[proc].push_back(prob_lens[i]);
         }
     }
 
