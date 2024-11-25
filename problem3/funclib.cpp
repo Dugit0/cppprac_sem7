@@ -21,11 +21,19 @@ protected:
     TFunctionPtr Left;
     TFunctionPtr Right;
     char Operation;
-    TFunction(TFunctionPtr t_left, char t_operation, TFunctionPtr t_right)
+    explicit TFunction(TFunctionPtr t_left, char t_operation, TFunctionPtr t_right)
         : Left(t_left)
         , Right(t_right)
         , Operation(t_operation)
-    {}
+    {
+        if (Operation != '=') {
+            if (!Left) {
+                throw std::logic_error("Invalid left operand");
+            } else if (!Right) {
+                throw std::logic_error("Invalid right operand");
+            }
+        }
+    }
 public:
 
     friend TFunctionPtr operator+(TFunctionPtr lhs, TFunctionPtr rhs) {
@@ -74,14 +82,14 @@ public:
 
 class TFactory {
 public:
-    template<typename T>
-    TFunctionPtr Create(std::string type, T value);
+    TFunctionPtr Create(std::string type);
+    TFunctionPtr Create(std::string type, double value);
+    TFunctionPtr Create(std::string type, std::vector<double> value);
 };
 
 
 class TIdent : public TFunction {
-    template<typename T>
-    friend TFunctionPtr TFactory::Create(std::string type, T value);
+    friend TFunctionPtr TFactory::Create(std::string type);
 
 protected:
     explicit TIdent() : TFunction(nullptr, '=', nullptr) {}
@@ -98,8 +106,7 @@ public:
 
 class TConst : public TFunction {
     double Value;
-    template<typename T>
-    friend TFunctionPtr TFactory::Create(std::string type, T value);
+    friend TFunctionPtr TFactory::Create(std::string type, double value);
 
 protected:
     explicit TConst(double t_value) : TFunction(nullptr, '=', nullptr), Value(t_value) {}
@@ -116,8 +123,7 @@ public:
 
 class TPower : public TFunction {
     double Power;
-    template<typename T>
-    friend TFunctionPtr TFactory::Create(std::string type, T value);
+    friend TFunctionPtr TFactory::Create(std::string type, double value);
 protected:
     explicit TPower(double t_power) : TFunction(nullptr, '=', nullptr), Power(t_power) {}
 
@@ -128,13 +134,11 @@ public:
     double operator()(double x) override {
         return std::pow(x, Power);
     }
-
 };
 
 
 class TExp : public TFunction {
-    template<typename T>
-    friend TFunctionPtr TFactory::Create(std::string type, T value);
+    friend TFunctionPtr TFactory::Create(std::string type);
 
 protected:
     explicit TExp() : TFunction(nullptr, '=', nullptr) {}
@@ -151,8 +155,7 @@ public:
 
 class TPolynomial : public TFunction {
     std::vector<double> Coeffs;
-    template<typename T>
-    friend TFunctionPtr TFactory::Create(std::string type, T value);
+    friend TFunctionPtr TFactory::Create(std::string type, std::vector<double> value);
 
 protected:
     explicit TPolynomial(std::vector<double> t_coeffs)
@@ -184,14 +187,33 @@ public:
 };
 
 
-template<typename T>
-TFunctionPtr TFactory::Create(std::string type, T value) {
+
+TFunctionPtr TFactory::Create(std::string type) {
     if (type == "ident") {
         return std::shared_ptr<TIdent>(new TIdent());
-    } else if (type == "const") {
-        return std::shared_ptr<TConst>(new TConst(value));
+    } else if (type == "exp") {
+        return std::shared_ptr<TExp>(new TExp());
     } else {
         return nullptr;
     }
 }
+
+TFunctionPtr TFactory::Create(std::string type, double value) {
+    if (type == "const") {
+        return std::shared_ptr<TConst>(new TConst(value));
+    } else if (type == "power") {
+        return std::shared_ptr<TPower>(new TPower(value));
+    } else {
+        return nullptr;
+    }
+}
+
+TFunctionPtr TFactory::Create(std::string type, std::vector<double> value) {
+    if (type == "polynomial") {
+        return std::shared_ptr<TPolynomial>(new TPolynomial(value));
+    } else {
+        return nullptr;
+    }
+}
+
 } // end namespace funcs

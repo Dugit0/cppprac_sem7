@@ -11,6 +11,12 @@ all: main.out
 run: main.out
 	./main.out
 
+test: tests.out
+	./tests.out
+
+tests.out: tests.cpp funclib.cpp
+	$(CC) tests.cpp -O2 -Wall -Wextra -Wpedantic -std=c++23 -lm -lgtest -o tests.out
+
 main.out: main.o funclib.o
 	$(CC) $(CPPFLAGS) -o $@ $^
 
