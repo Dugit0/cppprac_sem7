@@ -57,7 +57,7 @@ public:
             return Left->ToString();
         } else if (Operation == '+' || Operation == '-' ||
                 Operation == '*' || Operation == '/') {
-            return std::format("({} {} {})", Left->ToString(), Operation, Right->ToString());
+            return std::format("(({}) {} ({}))", Left->ToString(), Operation, Right->ToString());
         } else {
             // TODO
             throw std::logic_error("Unexpected operation");
@@ -165,12 +165,18 @@ protected:
 
 public:
     std::string ToString() override {
+        bool first_not_null = true;
         std::string res{};
         for (size_t i = 0; i < Coeffs.size(); i++) {
             if (Coeffs[i] == 0) {
                 continue;
             }
-            res += std::format("{}*x^{}", Coeffs[i], i);
+            if (first_not_null) {
+                first_not_null = false;
+                res += std::format("{}*x^{}", Coeffs[i], i);
+            } else {
+                res += std::format(" + {}*x^{}", Coeffs[i], i);
+            }
         }
         if (res == "") {
             res = "0";

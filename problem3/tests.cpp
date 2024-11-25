@@ -77,13 +77,40 @@ TEST_F(BaseTest, Polynomial) {
     std::vector<funcs::TFunctionPtr> polys = {
         factory.Create("polynomial", {0, 0, 0}),
         factory.Create("polynomial", {5, 0, 0}),
-        factory.Create("polynomial", {5, 2, 4, 2}),
+        factory.Create("polynomial", {5, 0, 4, 2}),
     };
     for (const auto& poly : polys) {
         ASSERT_NE(poly, nullptr);
     }
+
+    EXPECT_EQ(polys[0]->ToString(), "0");
+    EXPECT_EQ(polys[1]->ToString(), "5*x^0");
+    EXPECT_EQ(polys[2]->ToString(), "5*x^0 + 4*x^2 + 2*x^3");
+
+    for (const auto& x : test_numbers) {
+        EXPECT_EQ((*polys[0])(x), 0);
+        EXPECT_EQ((*polys[1])(x), 5);
+    }
+
+    EXPECT_DOUBLE_EQ((*polys[2])(23), 26455);
+    EXPECT_DOUBLE_EQ((*polys[2])(42), 155237);
+    EXPECT_DOUBLE_EQ((*polys[2])(6.22), 641.037296);
+
 }
 
+TEST_F(BaseTest, Arithmetic) {
+    auto f1 = factory.Create("const", 10);
+    auto f2 = factory.Create("polynomial", {1, 1, 2, 1});
+    auto f3 = factory.Create("exp");
+    auto f4 = factory.Create("ident");
+    auto f5 = factory.Create("power", 3);
+    auto func = f3 / (f4 + f5) * (f2 - f1);
+    ASSERT_NE(func, nullptr);
+    EXPECT_EQ(func->ToString(), "((((e^x) / (((x) + (x^3))))) * (((1*x^0 + 1*x^1 + 2*x^2 + 1*x^3) - (10.000000))))");
+    EXPECT_EQ((*func)(1), -6.7957045711476125);
+    EXPECT_EQ((*func)(10.5), 42890.765437737842);
+    EXPECT_EQ((*func)(3.456), 42.236606276507715);
+}
 
 
 int main(int argc, char **argv) {
