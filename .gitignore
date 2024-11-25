@@ -45,3 +45,6 @@
 # Python
 venv
 __pycache__
+
+# Gen input/output
+problem2/solution/inputs
