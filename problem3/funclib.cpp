@@ -77,6 +77,21 @@ public:
             throw std::logic_error("Unexpected operation");
         }
     }
+
+    virtual double calc_derivative(double x) {
+        if (Operation == '+') {
+            return Left->calc_derivative(x) + Right->calc_derivative(x);
+        } else if (Operation == '-') {
+            return Left->calc_derivative(x) - Right->calc_derivative(x);
+        } else if (Operation == '*') {
+            return Left->calc_derivative(x) * (*Right)(x) + (*Left)(x) * Right->calc_derivative(x);
+        } else if (Operation == '/') {
+            return (Left->calc_derivative(x) * (*Right)(x) - (*Left)(x) * Right->calc_derivative(x)) / ((*Right)(x) * (*Right)(x));
+        } else {
+            // TODO
+            throw std::logic_error("Unexpected operation");
+        }
+    }
 };
 
 
@@ -101,6 +116,9 @@ public:
     double operator()(double x) override {
         return x;
     }
+    double calc_derivative(double) override {
+        return 1.;
+    }
 };
 
 
@@ -118,6 +136,9 @@ public:
     double operator()(double) override {
         return Value;
     }
+    double calc_derivative(double) override {
+        return 0.;
+    }
 };
 
 
@@ -134,6 +155,12 @@ public:
     double operator()(double x) override {
         return std::pow(x, Power);
     }
+    double calc_derivative(double x) override {
+        if (Power == 0) {
+            return 0.;
+        }
+        return Power * std::pow(x, Power - 1);
+    }
 };
 
 
@@ -148,6 +175,9 @@ public:
         return "e^x";
     }
     double operator()(double x) override {
+        return std::exp(x);
+    }
+    double calc_derivative(double x) override {
         return std::exp(x);
     }
 };
@@ -184,9 +214,16 @@ public:
         return res;
     }
     double operator()(double x) override {
-        double res{};
+        double res = 0.;
         for (size_t i = 0; i < Coeffs.size(); i++) {
             res += Coeffs[i] * std::pow(x, i);
+        }
+        return res;
+    }
+    double calc_derivative(double x) override {
+        double res = 0.;
+        for (size_t i = 1; i < Coeffs.size(); i++) {
+            res += Coeffs[i] * i * std::pow(x, i - 1);
         }
         return res;
     }
